@@ -59,4 +59,57 @@ function calculer_prix_vente($type_carte, $variante, $etat, $rarete_skin = null)
     // Retourne un entier arrondi, avec un minimum de 1 crédit
     return max(1, (int)$prix);
 }
+
+/**
+ * Identifie les doublons d'un inventaire selon le couple (id_ref, variante_cosmetique).
+ * Conserve le meilleur exemplaire de chaque groupe (prix le plus élevé, puis meilleur float, puis plus ancien).
+ */
+function identifier_doublons(array $cartes): array {
+    $groupes = [];
+
+    foreach ($cartes as $carte) {
+        $carte['_prix'] = calculer_prix_vente(
+            $carte['type_c'],
+            $carte['variante_cosmetique'],
+            $carte['etat'] ?? null,
+            $carte['rarete'] ?? null
+        );
+        $cle = $carte['id_ref'] . '|' . $carte['variante_cosmetique'];
+        $groupes[$cle][] = $carte;
+    }
+
+    $ids_instances = [];
+    $gain_total = 0;
+
+    foreach ($groupes as $groupe) {
+        if (count($groupe) <= 1) {
+            continue;
+        }
+
+        usort($groupe, function ($a, $b) {
+            if ($b['_prix'] !== $a['_prix']) {
+                return $b['_prix'] <=> $a['_prix'];
+            }
+            if ($a['float_value'] !== null && $b['float_value'] !== null) {
+                $cmpFloat = (float)$a['float_value'] <=> (float)$b['float_value'];
+                if ($cmpFloat !== 0) {
+                    return $cmpFloat;
+                }
+            }
+            return (int)$a['id_instance'] <=> (int)$b['id_instance'];
+        });
+
+        // L'élément 0 est conservé, tous les suivants sont des doublons à vendre
+        for ($i = 1, $n = count($groupe); $i < $n; $i++) {
+            $ids_instances[] = (int)$groupe[$i]['id_instance'];
+            $gain_total += $groupe[$i]['_prix'];
+        }
+    }
+
+    return [
+        'ids_instances' => $ids_instances,
+        'nb_doublons' => count($ids_instances),
+        'gain_total' => $gain_total
+    ];
+}
 ?>

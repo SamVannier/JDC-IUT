@@ -42,6 +42,8 @@ $stmt_inv = $pdo->prepare("
 $stmt_inv->execute([':id_user' => $_SESSION['id_user']]);
 $cartes = $stmt_inv->fetchAll();
 $total_cartes = count($cartes);
+$doublons = identifier_doublons($cartes);
+$est_doublon_map = array_flip($doublons['ids_instances']);
 ?>
 <!DOCTYPE html>
 <html lang="fr">
@@ -63,11 +65,19 @@ $total_cartes = count($cartes);
         .profil-stats { color: #a1b4c4; font-size: 16px; }
         .profil-stats strong { color: white; }
 
+        /* En-tête Inventaire + bouton doublons */
+        .inventaire-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+        .inventaire-header h2 { margin: 0; }
+        .btn-doublons { background-color: #e67e22; color: white; border: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; }
+        .btn-doublons:hover:not(:disabled) { background-color: #d35400; }
+        .btn-doublons:disabled { background-color: #3c4f5e; color: #8fa3b3; cursor: not-allowed; }
+
         /* Grille d'inventaire */
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
         .card { background: #2a475e; padding: 15px; border-radius: 10px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.4); border: 2px solid #171a21; }
         .card img { max-width: 100%; height: 150px; object-fit: contain; margin-bottom: 10px; }
         .badge { display: inline-block; background: #171a21; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin: 2px; }
+        .badge-doublon { background: #e67e22; color: white; font-weight: bold; }
         .float-text { font-size: 11px; color: #a1b4c4; margin-top: 8px; display: block; }
     </style>
 </head>
@@ -93,15 +103,37 @@ $total_cartes = count($cartes);
         </div>
     </div>
 
-    <h2>Mon Inventaire</h2>
+    <div class="inventaire-header">
+        <h2>Mon Inventaire</h2>
+        <button id="btn-vendre-doublons" class="btn-doublons"
+                onclick="vendreDoublons()"
+                data-nb="<?= $doublons['nb_doublons'] ?>"
+                data-gain="<?= $doublons['gain_total'] ?>"
+                <?= $doublons['nb_doublons'] === 0 ? 'disabled' : '' ?>>
+            <?php if ($doublons['nb_doublons'] > 0): ?>
+                Vendre les doublons (<?= $doublons['nb_doublons'] ?> — +<?= $doublons['gain_total'] ?> 🪙)
+            <?php else: ?>
+                Aucun doublon à vendre
+            <?php endif; ?>
+        </button>
+    </div>
+
     <div class="grid">
         <?php foreach ($cartes as $carte): ?>
             <?php 
                 // Calcul du prix pour l'affichage
-                $prix = calculer_prix_vente($carte['type_c'], $carte['variante_cosmetique'], $carte['etat'], $carte['rarete']); 
+                $prix = calculer_prix_vente($carte['type_c'], $carte['variante_cosmetique'], $carte['etat'], $carte['rarete']);
+                $id_inst = (int)$carte['id_instance'];
+                $est_doublon = isset($est_doublon_map[$id_inst]);
+                $groupe_cle = $carte['id_ref'] . '|' . $carte['variante_cosmetique'];
             ?>
             <!-- CORRECTION : Une seule div "card" propre -->
-            <div class="card" id="carte-<?= (int)$carte['id_instance'] ?>">
+            <div class="card"
+                 id="carte-<?= $id_inst ?>"
+                 data-instance="<?= $id_inst ?>"
+                 data-group="<?= htmlspecialchars($groupe_cle) ?>"
+                 data-prix="<?= $prix ?>"
+                 data-float="<?= $carte['float_value'] !== null ? htmlspecialchars((string)$carte['float_value']) : '' ?>">
                 <img src="<?= htmlspecialchars('bd' . $carte['image_url']) ?>" alt="Image carte">
                 <h4><?= htmlspecialchars($carte['nom']) ?></h4>
                 
@@ -110,6 +142,7 @@ $total_cartes = count($cartes);
                     <?php if ($carte['variante_cosmetique'] !== 'Normal'): ?>
                         <span class="badge" style="color: gold;"><?= htmlspecialchars($carte['variante_cosmetique']) ?></span>
                     <?php endif; ?>
+                    <span class="badge badge-doublon" style="<?= $est_doublon ? '' : 'display: none;' ?>">Doublon</span>
                 </div>
 
                 <?php if (strtoupper($carte['type_c']) === 'SKIN' && $carte['etat']): ?>
@@ -122,7 +155,7 @@ $total_cartes = count($cartes);
                 <!-- Bouton Vendre -->
                 <div style="margin-top: 15px;">
                     <button class="btn-vendre" style="background-color: #d9534f; border: none; color: white; padding: 8px; border-radius: 4px; cursor: pointer; width: 100%;" 
-                            onclick="vendreCarte(<?= (int)$carte['id_instance'] ?>, <?= htmlspecialchars(json_encode($carte['nom']), ENT_QUOTES, 'UTF-8') ?>)">
+                            onclick="vendreCarte(<?= $id_inst ?>, <?= htmlspecialchars(json_encode($carte['nom']), ENT_QUOTES, 'UTF-8') ?>)">
                         Vendre (<?= $prix ?> 🪙)
                     </button>
                 </div>
@@ -132,6 +165,57 @@ $total_cartes = count($cartes);
 
     <!-- AJOUT : Le script JavaScript qui gère la vente sans recharger la page -->
     <script>
+        function recalculerDoublonsUI() {
+            const groupes = {};
+            document.querySelectorAll('.card').forEach(el => {
+                const grp = el.dataset.group;
+                if (!groupes[grp]) groupes[grp] = [];
+                groupes[grp].push({
+                    el,
+                    instance: Number(el.dataset.instance),
+                    prix: Number(el.dataset.prix),
+                    floatVal: el.dataset.float !== '' ? Number(el.dataset.float) : null
+                });
+            });
+
+            let nbDoublons = 0;
+            let gainTotal = 0;
+
+            Object.values(groupes).forEach(liste => {
+                liste.sort((a, b) => {
+                    if (b.prix !== a.prix) return b.prix - a.prix;
+                    if (a.floatVal !== null && b.floatVal !== null && a.floatVal !== b.floatVal) {
+                        return a.floatVal - b.floatVal;
+                    }
+                    return a.instance - b.instance;
+                });
+
+                liste.forEach((item, index) => {
+                    const badge = item.el.querySelector('.badge-doublon');
+                    if (index === 0) {
+                        if (badge) badge.style.display = 'none';
+                    } else {
+                        if (badge) badge.style.display = 'inline-block';
+                        nbDoublons++;
+                        gainTotal += item.prix;
+                    }
+                });
+            });
+
+            const btnDoublons = document.getElementById('btn-vendre-doublons');
+            if (btnDoublons) {
+                btnDoublons.dataset.nb = nbDoublons;
+                btnDoublons.dataset.gain = gainTotal;
+                if (nbDoublons > 0) {
+                    btnDoublons.disabled = false;
+                    btnDoublons.textContent = `Vendre les doublons (${nbDoublons} — +${gainTotal} 🪙)`;
+                } else {
+                    btnDoublons.disabled = true;
+                    btnDoublons.textContent = 'Aucun doublon à vendre';
+                }
+            }
+        }
+
         async function vendreCarte(idInstance, nomCarte) {
             if (!confirm(`Es-tu sûr de vouloir vendre ${nomCarte} ?`)) return;
 
@@ -154,16 +238,64 @@ $total_cartes = count($cartes);
                         totalEl.textContent = document.querySelectorAll('.card').length;
                     }
                     
-                    // Met à jour l'affichage des crédits
+                    // Met à jour l'affichage des crédits et l'état des doublons
                     document.querySelectorAll('.solde-affichage').forEach(el => {
                         el.textContent = data.nouveau_solde + ' 🪙';
                     });
+                    recalculerDoublonsUI();
                 } else {
                     alert("Erreur : " + data.message);
                 }
             } catch (error) {
                 console.error(error);
                 alert("Erreur de connexion au serveur.");
+            }
+        }
+
+        async function vendreDoublons() {
+            const btn = document.getElementById('btn-vendre-doublons');
+            const nb = Number(btn.dataset.nb || 0);
+            const gain = Number(btn.dataset.gain || 0);
+            if (nb <= 0) return;
+
+            if (!confirm(`Es-tu sûr de vouloir vendre ${nb} doublon(s) pour +${gain} 🪙 ?\n(Le meilleur exemplaire de chaque carte + variante sera conservé.)`)) {
+                return;
+            }
+
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('api_vendre_doublons.php', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    (data.ids_vendus || []).forEach(idInstance => {
+                        const carteEl = document.getElementById('carte-' + idInstance);
+                        if (carteEl) {
+                            carteEl.remove();
+                        }
+                    });
+
+                    const totalEl = document.getElementById('total-cartes');
+                    if (totalEl) {
+                        totalEl.textContent = document.querySelectorAll('.card').length;
+                    }
+
+                    document.querySelectorAll('.solde-affichage').forEach(el => {
+                        el.textContent = data.nouveau_solde + ' 🪙';
+                    });
+
+                    recalculerDoublonsUI();
+                } else {
+                    alert("Erreur : " + data.message);
+                    recalculerDoublonsUI();
+                }
+            } catch (error) {
+                console.error(error);
+                alert("Erreur de connexion au serveur.");
+                recalculerDoublonsUI();
             }
         }
     </script>
