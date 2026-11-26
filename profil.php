@@ -12,14 +12,22 @@ $stmt_user = $pdo->prepare("SELECT * FROM UTILISATEUR WHERE id_user = :id");
 $stmt_user->execute([':id' => $_SESSION['id_user']]);
 $user_info = $stmt_user->fetch();
 
+if (!$user_info) {
+    session_destroy();
+    header('Location: login.php');
+    exit;
+}
+
 // Mise à jour de la session au cas où les crédits auraient changé
 $_SESSION['solde_credit'] = $user_info['solde_credit'];
 $_SESSION['pp'] = $user_info['pp'];
 
 // Traitement de l'URL de la PP (ajout du dossier bd/ si c'est un chemin relatif)
-$pp_url = !empty($user_info['pp']) ? $user_info['pp'] : 'https://via.placeholder.com/100';
+$default_pp = "data:image/svg+xml;utf8," . rawurlencode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="#171a21"/><circle cx="50" cy="38" r="18" fill="#66c0f4"/><path d="M20 88c0-17 13-28 30-28s30 11 30 28" fill="#66c0f4"/></svg>');
+$pp_url = !empty($user_info['pp']) ? $user_info['pp'] : $default_pp;
 if (strpos($pp_url, '/img/') === 0) {
-    $pp_url = 'bd' . $pp_url;
+    $local_pp = 'bd' . $pp_url;
+    $pp_url = is_file(__DIR__ . '/' . $local_pp) ? $local_pp : $default_pp;
 }
 
 // 2. Récupération de l'inventaire
@@ -79,8 +87,8 @@ $total_cartes = count($cartes);
             <h1><?= htmlspecialchars($user_info['pseudo']) ?></h1>
             <div class="profil-stats">
                 <!-- AJOUT : de la class="solde-affichage" pour le JS -->
-                <span>Solde : <strong class="solde-affichage"><?= htmlspecialchars($user_info['solde_credit']) ?> 🪙</strong></span> &nbsp;|&nbsp; 
-                <span>Cartes possédées : <strong><?= $total_cartes ?></strong></span>
+                <span>Solde : <strong class="solde-affichage"><?= htmlspecialchars((string)$user_info['solde_credit']) ?> 🪙</strong></span> &nbsp;|&nbsp; 
+                <span>Cartes possédées : <strong id="total-cartes"><?= $total_cartes ?></strong></span>
             </div>
         </div>
     </div>
@@ -93,7 +101,7 @@ $total_cartes = count($cartes);
                 $prix = calculer_prix_vente($carte['type_c'], $carte['variante_cosmetique'], $carte['etat'], $carte['rarete']); 
             ?>
             <!-- CORRECTION : Une seule div "card" propre -->
-            <div class="card" id="carte-<?= $carte['id_instance'] ?>">
+            <div class="card" id="carte-<?= (int)$carte['id_instance'] ?>">
                 <img src="<?= htmlspecialchars('bd' . $carte['image_url']) ?>" alt="Image carte">
                 <h4><?= htmlspecialchars($carte['nom']) ?></h4>
                 
@@ -104,17 +112,17 @@ $total_cartes = count($cartes);
                     <?php endif; ?>
                 </div>
 
-                <?php if ($carte['type_c'] === 'Skin' && $carte['etat']): ?>
+                <?php if (strtoupper($carte['type_c']) === 'SKIN' && $carte['etat']): ?>
                     <span class="badge" style="background: #3c3d3e; margin-top: 8px;">
                         <?= htmlspecialchars($carte['etat']) ?>
                     </span>
-                    <span class="float-text">Float: <?= number_format($carte['float_value'], 10) ?></span>
+                    <span class="float-text">Float: <?= number_format((float)$carte['float_value'], 10) ?></span>
                 <?php endif; ?>
 
                 <!-- Bouton Vendre -->
                 <div style="margin-top: 15px;">
                     <button class="btn-vendre" style="background-color: #d9534f; border: none; color: white; padding: 8px; border-radius: 4px; cursor: pointer; width: 100%;" 
-                            onclick="vendreCarte(<?= $carte['id_instance'] ?>, '<?= htmlspecialchars(addslashes($carte['nom']), ENT_QUOTES) ?>')"
+                            onclick="vendreCarte(<?= (int)$carte['id_instance'] ?>, <?= htmlspecialchars(json_encode($carte['nom']), ENT_QUOTES, 'UTF-8') ?>)">
                         Vendre (<?= $prix ?> 🪙)
                     </button>
                 </div>
@@ -136,12 +144,19 @@ $total_cartes = count($cartes);
                 const data = await response.json();
 
                 if (data.success) {
-                    // Fait disparaître la carte
-                    document.getElementById('carte-' + idInstance).style.display = 'none';
+                    // Supprime la carte du DOM et met à jour le compteur
+                    const carteEl = document.getElementById('carte-' + idInstance);
+                    if (carteEl) {
+                        carteEl.remove();
+                    }
+                    const totalEl = document.getElementById('total-cartes');
+                    if (totalEl) {
+                        totalEl.textContent = document.querySelectorAll('.card').length;
+                    }
                     
                     // Met à jour l'affichage des crédits
                     document.querySelectorAll('.solde-affichage').forEach(el => {
-                        el.innerHTML = data.nouveau_solde + ' 🪙';
+                        el.textContent = data.nouveau_solde + ' 🪙';
                     });
                 } else {
                     alert("Erreur : " + data.message);

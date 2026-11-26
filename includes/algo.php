@@ -12,7 +12,7 @@ function generer_variante($type_carte) {
     // Génère un nombre flottant entre 0.0 et 1.0
     $tirage = mt_rand() / mt_getrandmax(); 
 
-    if ($type_carte === 'SKIN') {
+    if (strtoupper($type_carte) === 'SKIN') {
         // 10% de chance d'avoir un skin StatTrak
         return ($tirage <= 0.10) ? 'StatTrak' : 'Normal';
     } else {

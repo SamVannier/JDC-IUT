@@ -10,10 +10,10 @@ VALUES ('Shoto', 5000, '/img/shoto_pp.png');
 
 -- Une carte JOUEUR : ZywOo
 INSERT INTO CARTE (type_c, nom, image_url) 
-VALUES ('JOUEUR', 'Mathieu "ZywOo" Herbaut', '/img/zywoo.png');
+VALUES ('Joueur', 'Mathieu "ZywOo" Herbaut', '/img/zywoo.png');
 SET @id_zywoo = LAST_INSERT_ID();
 INSERT INTO CARTE_JOUEUR (id_ref, role_j, rating) 
-VALUES (@id_zywoo, 'AWPER', 1.30);
+VALUES (@id_zywoo, 'Awper', 1.30);
 
 -- Une carte EQUIPE : Vitality
 INSERT INTO CARTE (type_c, nom, image_url) 
@@ -24,14 +24,14 @@ VALUES (@id_vita, 'Europe', 1);
 
 -- Une carte SKIN : AK-47 Redline
 INSERT INTO CARTE (type_c, nom, image_url) 
-VALUES ('SKIN', 'AK-47 | Redline', '/img/ak_redline.png');
+VALUES ('Skin', 'AK-47 | Redline', '/img/ak_redline.png');
 SET @id_ak = LAST_INSERT_ID();
 INSERT INTO CARTE_SKIN (id_ref, arme, rarete) 
 VALUES (@id_ak, 'AK-47', 'Classified');
 
 -- Une carte SKIN très rare : AWP Dragon Lore
 INSERT INTO CARTE (type_c, nom, image_url) 
-VALUES ('SKIN', 'AWP | Dragon Lore', '/img/awp_dlore.png');
+VALUES ('Skin', 'AWP | Dragon Lore', '/img/awp_dlore.png');
 SET @id_dlore = LAST_INSERT_ID();
 INSERT INTO CARTE_SKIN (id_ref, arme, rarete) 
 VALUES (@id_dlore, 'AWP', 'Covert');

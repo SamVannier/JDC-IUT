@@ -20,6 +20,8 @@ if (!$id_instance) {
 }
 
 try {
+    $pdo->beginTransaction();
+
     // 1. Vérifier que la carte appartient bien au joueur et récupérer ses stats avec un LEFT JOIN sur CARTE_SKIN
     $stmt = $pdo->prepare("
         SELECT i.*, c.type_c, cs.rarete 
@@ -27,6 +29,7 @@ try {
         JOIN CARTE c ON i.id_ref = c.id_ref
         LEFT JOIN CARTE_SKIN cs ON c.id_ref = cs.id_ref
         WHERE i.id_instance = :id_instance AND i.id_user = :id_user
+        FOR UPDATE
     ");
     $stmt->execute([
         ':id_instance' => $id_instance, 
@@ -35,6 +38,7 @@ try {
     $carte = $stmt->fetch();
 
     if (!$carte) {
+        $pdo->rollBack();
         echo json_encode(["success" => false, "message" => "Cette carte ne vous appartient pas ou n'existe plus."]);
         exit;
     }
@@ -42,19 +46,21 @@ try {
     // 2. Calculer sa valeur serveur (Sécurité)
     $prix_vente = calculer_prix_vente($carte['type_c'], $carte['variante_cosmetique'], $carte['etat'], $carte['rarete']);
 
-    // 3. Transaction : Vendre la carte = Supprimer de l'inventaire + Ajouter les crédits
-    $pdo->beginTransaction();
-
+    // 3. Vendre la carte = Supprimer de l'inventaire + Ajouter les crédits
     $stmt_delete = $pdo->prepare("DELETE FROM INVENTAIRE WHERE id_instance = :id_instance");
     $stmt_delete->execute([':id_instance' => $id_instance]);
 
     $stmt_credit = $pdo->prepare("UPDATE UTILISATEUR SET solde_credit = solde_credit + :prix WHERE id_user = :id_user");
     $stmt_credit->execute([':prix' => $prix_vente, ':id_user' => $id_user]);
 
+    $stmt_solde = $pdo->prepare("SELECT solde_credit FROM UTILISATEUR WHERE id_user = :id_user");
+    $stmt_solde->execute([':id_user' => $id_user]);
+    $nouveau_solde = (int)$stmt_solde->fetchColumn();
+
     $pdo->commit();
 
     // Mettre à jour la session
-    $_SESSION['solde_credit'] += $prix_vente;
+    $_SESSION['solde_credit'] = $nouveau_solde;
 
     echo json_encode([
         "success" => true, 
@@ -63,7 +69,9 @@ try {
     ]);
 
 } catch (PDOException $e) {
-    $pdo->rollBack();
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     echo json_encode(["success" => false, "message" => "Erreur BDD : " . $e->getMessage()]);
 }
 ?>

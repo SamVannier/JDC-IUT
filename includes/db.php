@@ -11,6 +11,7 @@ try {
     // Renvoie les résultats sous forme de tableau associatif
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
-    die(json_encode(["error" => "Erreur de connexion BDD : " . $e->getMessage()]));
+    $msg = "Erreur de connexion BDD : " . $e->getMessage();
+    die(json_encode(["success" => false, "message" => $msg, "error" => $msg]));
 }
 ?>

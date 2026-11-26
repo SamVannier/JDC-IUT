@@ -1,3 +1,10 @@
+<?php
+session_start();
+if (!isset($_SESSION['id_user'])) {
+    header('Location: login.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -27,7 +34,7 @@
     <div class="nav">
         <div><strong>TCG CS</strong></div>
         <div>
-            <span style="margin-right: 15px; color: #a1b4c4;">Solde: <?= htmlspecialchars($_SESSION['solde_credit']) ?> 🪙</span>
+            <span style="margin-right: 15px; color: #a1b4c4;">Solde: <span id="solde-affichage"><?= htmlspecialchars((string)($_SESSION['solde_credit'] ?? 0)) ?></span> 🪙</span>
             <a href="profil.php">Mon Profil</a>
             <a href="logout.php">Déconnexion</a>
         </div>
@@ -85,6 +92,9 @@
                     }
 
                     resultDiv.style.display = 'block';
+                    if (data.nouveau_solde !== undefined) {
+                        document.getElementById('solde-affichage').innerText = data.nouveau_solde;
+                    }
                 } else {
                     alert("Erreur : " + data.message);
                 }

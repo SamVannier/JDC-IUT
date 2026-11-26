@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="login-box">
         <h2>Connexion</h2>
         <?php if ($erreur): ?>
-            <div class="error"><?= $erreur ?></div>
+            <div class="error"><?= htmlspecialchars($erreur) ?></div>
         <?php endif; ?>
         <form method="POST" action="login.php">
             <input type="text" name="pseudo" placeholder="Entrez votre pseudo" required>
