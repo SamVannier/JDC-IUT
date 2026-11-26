@@ -1,6 +1,7 @@
 create table UTILISATEUR (
     id_user int AUTO_INCREMENT primary key,
-    pseudo varchar(15),
+    pseudo varchar(15) not null unique,
+    mdp varchar(255) not null,
     solde_credit int default 1000,
     pp varchar(255)
 );

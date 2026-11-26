@@ -2,9 +2,9 @@
 -- JEU D'ESSAI (Données de test)
 -- =========================================
 
--- 1. Création d'un joueur
-INSERT INTO UTILISATEUR (pseudo, solde_credit, pp) 
-VALUES ('Shoto', 5000, '/img/shoto_pp.png');
+-- 1. Création d'un joueur (mot de passe de test : shoto123)
+INSERT INTO UTILISATEUR (pseudo, mdp, solde_credit, pp) 
+VALUES ('Shoto', '$2y$10$33nSnF3EuqZAjwS8m6tFOO83.R8PbHAig64ZK49UBrMTUxbfpSFYS', 5000, '/img/shoto_pp.png');
 
 -- 2. Création des références de cartes (La "bibliothèque" du jeu)
 
