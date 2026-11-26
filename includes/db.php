@@ -14,4 +14,10 @@ try {
     $msg = "Erreur de connexion BDD : " . $e->getMessage();
     die(json_encode(["success" => false, "message" => $msg, "error" => $msg]));
 }
+
+function ensure_mdp_column(PDO $pdo): void {
+    $pdo->exec("ALTER TABLE UTILISATEUR ADD COLUMN mdp VARCHAR(255) NOT NULL DEFAULT '' AFTER pseudo");
+    $stmt = $pdo->prepare("UPDATE UTILISATEUR SET mdp = :hash WHERE pseudo = 'Shoto' AND mdp = ''");
+    $stmt->execute([':hash' => '$2y$10$33nSnF3EuqZAjwS8m6tFOO83.R8PbHAig64ZK49UBrMTUxbfpSFYS']);
+}
 ?>

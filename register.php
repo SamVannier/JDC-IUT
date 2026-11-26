@@ -46,12 +46,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     INSERT INTO UTILISATEUR (pseudo, mdp, solde_credit, pp)
                     VALUES (:pseudo, :mdp, :solde, :pp)
                 ");
-                $stmt_insert->execute([
+                $params_insert = [
                     ':pseudo' => $pseudo,
                     ':mdp' => $mdp_hash,
                     ':solde' => $credits_depart,
                     ':pp' => $pp_db
-                ]);
+                ];
+
+                try {
+                    $stmt_insert->execute($params_insert);
+                } catch (PDOException $insertEx) {
+                    if ($insertEx->getCode() === '42S22') {
+                        ensure_mdp_column($pdo);
+                        $stmt_insert->execute($params_insert);
+                    } else {
+                        throw $insertEx;
+                    }
+                }
 
                 $nouvel_id = (int)$pdo->lastInsertId();
 

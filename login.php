@@ -20,8 +20,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user = $stmt->fetch();
 
     if ($user && !array_key_exists('mdp', $user)) {
-        $erreur = "La base de données doit être mise à jour (colonne 'mdp' manquante dans UTILISATEUR).";
-    } elseif ($user && password_verify($mdp, $user['mdp'])) {
+        ensure_mdp_column($pdo);
+        $stmt->execute([':pseudo' => $pseudo_saisi]);
+        $user = $stmt->fetch();
+    }
+
+    if ($user && password_verify($mdp, $user['mdp'])) {
         session_regenerate_id(true);
         // Enregistrement des données dans la session serveur
         $_SESSION['id_user'] = $user['id_user'];
